@@ -207,6 +207,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     // Space: scheduled craters (raised rims around a bowl = natural jumps)
     private var craters: [(x0: CGFloat, len: CGFloat, rimH: CGFloat, depth: CGFloat)] = []
     private var nextCraterX: CGFloat = 1500
+    // Land levels: rare MUCH bigger scheduled jumps (long kicker, long landing)
+    private var megaJumps: [(x0: CGFloat, len: CGFloat, h: CGFloat)] = []
+    private var nextMegaX: CGFloat = 2200
 
     // MARK: Bike
     // One heavy chassis physics body that rides on two wheel contact points.
@@ -613,17 +616,61 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             tile(cloudSet, into: cloudLayer, L: cloudL)
         }
 
-        // Mountain bands back-to-front: hazier + lighter = further away.
-        // Sine-based bands are inherently periodic, so build them 3L wide directly.
-        let farL: CGFloat = 2800
-        let farLayer = addBGLayer(f: 0.12, fy: 0.06, L: farL, z: Z.bgHills)
-        farLayer.addChild(hillBand(yBase: size.height * 0.38, amp: 95, period: 1400,
-            top: theme.farTop, bottom: theme.farBottom, from: -farL, to: farL * 2))
+        if level == .jungle {
+            // Deep jungle: walls of towering trees at three depths instead of
+            // distant mountains — the horizon is CLOSE here
+            let farL: CGFloat = 2000
+            let farLayer = addBGLayer(f: 0.12, fy: 0.06, L: farL, z: Z.bgHills)
+            tile(tallJungleRow(width: farL, yBase: size.height * 0.24,
+                               treeTop: size.height * 0.62,
+                               foliage: theme.farTop, vines: false,
+                               spacing: 110...220),
+                 into: farLayer, L: farL)
 
-        let midL: CGFloat = 1600
-        let midLayer = addBGLayer(f: 0.22, fy: 0.12, L: midL, z: Z.bgHills + 0.3)
-        midLayer.addChild(hillBand(yBase: size.height * 0.31, amp: 70, period: 800,
-            top: theme.midTop, bottom: theme.midBottom, from: -midL, to: midL * 2))
+            let midL: CGFloat = 1700
+            let midLayer = addBGLayer(f: 0.22, fy: 0.12, L: midL, z: Z.bgHills + 0.3)
+            tile(tallJungleRow(width: midL, yBase: size.height * 0.20,
+                               treeTop: size.height * 0.85,
+                               foliage: theme.midTop, vines: true,
+                               spacing: 160...320),
+                 into: midLayer, L: midL)
+
+            let bigL: CGFloat = 1500
+            let bigLayer = addBGLayer(f: 0.45, fy: 0.25, L: bigL, z: Z.bgHills + 0.6)
+            tile(tallJungleRow(width: bigL, yBase: size.height * 0.16,
+                               treeTop: size.height * 1.05,
+                               foliage: theme.nearTop, vines: true,
+                               spacing: 280...520),
+                 into: bigLayer, L: bigL)
+
+            // Canopy ceiling: leaves hanging over the top edge of the screen
+            let fringe = CGMutablePath()
+            let topY = size.height * 0.52
+            var fx = -size.width * 0.62
+            while fx < size.width * 0.62 {
+                let r = CGFloat.random(in: 34...62)
+                fringe.addEllipse(in: CGRect(x: fx, y: topY - r * 0.75,
+                                             width: r * 2, height: r * 1.5))
+                fx += r * 1.1
+            }
+            let fringeNode = SKShapeNode(path: fringe)
+            fringeNode.fillColor = theme.nearTop
+            fringeNode.strokeColor = .clear
+            fringeNode.zPosition = Z.bgHills + 0.9
+            screenNode.addChild(fringeNode)
+        } else {
+            // Mountain bands back-to-front: hazier + lighter = further away.
+            // Sine-based bands are inherently periodic, so build 3L wide directly.
+            let farL: CGFloat = 2800
+            let farLayer = addBGLayer(f: 0.12, fy: 0.06, L: farL, z: Z.bgHills)
+            farLayer.addChild(hillBand(yBase: size.height * 0.38, amp: 95, period: 1400,
+                top: theme.farTop, bottom: theme.farBottom, from: -farL, to: farL * 2))
+
+            let midL: CGFloat = 1600
+            let midLayer = addBGLayer(f: 0.22, fy: 0.12, L: midL, z: Z.bgHills + 0.3)
+            midLayer.addChild(hillBand(yBase: size.height * 0.31, amp: 70, period: 800,
+                top: theme.midTop, bottom: theme.midBottom, from: -midL, to: midL * 2))
+        }
 
         let ftL: CGFloat = 1800
         let ftLayer = addBGLayer(f: 0.32, fy: 0.18, L: ftL, z: Z.bgHills + 0.45)
@@ -631,10 +678,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                            color: theme.vegFar),
              into: ftLayer, L: ftL)
 
-        let nearL: CGFloat = 1440
-        let nearLayer = addBGLayer(f: 0.45, fy: 0.25, L: nearL, z: Z.bgHills + 0.6)
-        nearLayer.addChild(hillBand(yBase: size.height * 0.21, amp: 45, period: 480,
-            top: theme.nearTop, bottom: theme.nearBottom, from: -nearL, to: nearL * 2))
+        if level != .jungle {
+            let nearL: CGFloat = 1440
+            let nearLayer = addBGLayer(f: 0.45, fy: 0.25, L: nearL, z: Z.bgHills + 0.6)
+            nearLayer.addChild(hillBand(yBase: size.height * 0.21, amp: 45, period: 480,
+                top: theme.nearTop, bottom: theme.nearBottom, from: -nearL, to: nearL * 2))
+        }
 
         let ntL: CGFloat = 1600
         let ntLayer = addBGLayer(f: 0.60, fy: 0.32, L: ntL, z: Z.bgHills + 0.8)
@@ -716,6 +765,86 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let n = SKShapeNode(path: path)
         n.fillColor = body; n.strokeColor = .clear
         row.addChild(n)
+        return row
+    }
+
+    /// A wall of towering jungle trees: tapered trunks with buttress roots,
+    /// bulbous canopies, and optional hanging vines. Batched into three
+    /// shape nodes (trunks, leaves, vines) per row.
+    private func tallJungleRow(width: CGFloat, yBase: CGFloat, treeTop: CGFloat,
+                               foliage: SKColor, vines: Bool,
+                               spacing: ClosedRange<CGFloat>) -> SKNode {
+        let row = SKNode()
+        let trunkPath = CGMutablePath()
+        let leafPath  = CGMutablePath()
+        let vinePath  = CGMutablePath()
+        var x = CGFloat.random(in: 20...80)
+        while x < width - 20 {
+            let s = CGFloat.random(in: 0.8...1.2)
+            let h = treeTop * s
+            let w = max(4, h * 0.035)
+            let lean = CGFloat.random(in: -0.05...0.05)
+            // Tapered trunk, leaning a touch
+            trunkPath.move(to: CGPoint(x: x - w, y: yBase))
+            trunkPath.addLine(to: CGPoint(x: x + w, y: yBase))
+            trunkPath.addLine(to: CGPoint(x: x + w * 0.55 + lean * h, y: yBase + h))
+            trunkPath.addLine(to: CGPoint(x: x - w * 0.55 + lean * h, y: yBase + h))
+            trunkPath.closeSubpath()
+            // Buttress roots flaring at the base
+            trunkPath.move(to: CGPoint(x: x - w * 2.4, y: yBase))
+            trunkPath.addLine(to: CGPoint(x: x - w * 0.6, y: yBase + h * 0.10))
+            trunkPath.addLine(to: CGPoint(x: x - w * 0.6, y: yBase))
+            trunkPath.closeSubpath()
+            trunkPath.move(to: CGPoint(x: x + w * 2.4, y: yBase))
+            trunkPath.addLine(to: CGPoint(x: x + w * 0.6, y: yBase + h * 0.10))
+            trunkPath.addLine(to: CGPoint(x: x + w * 0.6, y: yBase))
+            trunkPath.closeSubpath()
+            // Canopy: overlapping blobs at the crown
+            let cx = x + lean * h
+            leafPath.addEllipse(in: CGRect(x: cx - h * 0.16, y: yBase + h * 0.86,
+                                           width: h * 0.32, height: h * 0.16))
+            leafPath.addEllipse(in: CGRect(x: cx - h * 0.11, y: yBase + h * 0.94,
+                                           width: h * 0.22, height: h * 0.13))
+            leafPath.addEllipse(in: CGRect(x: cx - h * 0.20, y: yBase + h * 0.80,
+                                           width: h * 0.24, height: h * 0.12))
+            // A branch partway up with its own leaf tuft
+            let by = yBase + h * CGFloat.random(in: 0.45...0.65)
+            let bdir: CGFloat = Bool.random() ? 1 : -1
+            trunkPath.move(to: CGPoint(x: x, y: by))
+            trunkPath.addLine(to: CGPoint(x: x + bdir * h * 0.14, y: by + h * 0.06))
+            trunkPath.addLine(to: CGPoint(x: x, y: by + h * 0.03))
+            trunkPath.closeSubpath()
+            leafPath.addEllipse(in: CGRect(x: x + bdir * h * 0.14 - h * 0.09,
+                                           y: by + h * 0.03,
+                                           width: h * 0.18, height: h * 0.09))
+            // Vines dangling off the canopy
+            if vines && Bool.random() {
+                for _ in 0..<2 {
+                    let vx = cx + CGFloat.random(in: -h * 0.14 ... h * 0.14)
+                    let vy = yBase + h * 0.84
+                    let drop = h * CGFloat.random(in: 0.18...0.38)
+                    vinePath.move(to: CGPoint(x: vx, y: vy))
+                    vinePath.addQuadCurve(to: CGPoint(x: vx + CGFloat.random(in: -14...14),
+                                                      y: vy - drop),
+                                          control: CGPoint(x: vx + CGFloat.random(in: -10...10),
+                                                           y: vy - drop * 0.5))
+                }
+            }
+            x += CGFloat.random(in: spacing)
+        }
+        let trunks = SKShapeNode(path: trunkPath)
+        trunks.fillColor = SKColor(red: 0.26, green: 0.18, blue: 0.10, alpha: 1)
+        trunks.strokeColor = .clear
+        row.addChild(trunks)
+        let leaves = SKShapeNode(path: leafPath)
+        leaves.fillColor = foliage; leaves.strokeColor = .clear
+        row.addChild(leaves)
+        if vines {
+            let v = SKShapeNode(path: vinePath)
+            v.strokeColor = foliage.withAlphaComponent(0.8); v.lineWidth = 2.5
+            v.lineCap = .round; v.fillColor = .clear
+            row.addChild(v)
+        }
         return row
     }
 
@@ -907,24 +1036,38 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                 let roll = CGFloat.random(in: 0...(wSmall + wBig + wWhop))
                 let h: CGFloat, len: CGFloat
                 if roll < wSmall {
-                    h = .random(in: 30...55);   len = .random(in: 320...440)
+                    h = .random(in: 40...70);   len = .random(in: 360...500)
                 } else if roll < wSmall + wBig {
-                    h = .random(in: 70...110);  len = .random(in: 450...620)
+                    h = .random(in: 90...140);  len = .random(in: 500...700)
                 } else {                        // the whopper
-                    h = .random(in: 130...180); len = .random(in: 650...900)
+                    h = .random(in: 160...220); len = .random(in: 720...1000)
                 }
                 waterWaves.append((x0: nextWaveX, len: len, h: h))
-                nextWaveX += len + CGFloat.random(in: 500...1100)
+                nextWaveX += len + CGFloat.random(in: 800...1500)
             }
         }
-        // Space: schedule craters ahead of the generation front
+        // Space: schedule craters ahead of the generation front. Long and
+        // wide — features must span many terrain samples to stay smooth.
+        // Roughly a quarter of them are monsters with towering rims.
         if level == .space {
             while nextCraterX < maxX + 900 {
-                let len = CGFloat.random(in: 420...780)
+                let mega = CGFloat.random(in: 0...1) < 0.25
+                let len = mega ? CGFloat.random(in: 900...1300)
+                               : CGFloat.random(in: 700...1100)
                 craters.append((x0: nextCraterX, len: len,
-                                rimH: .random(in: 26...48),
-                                depth: .random(in: 40...95)))
-                nextCraterX += len + CGFloat.random(in: 400...900)
+                                rimH: mega ? .random(in: 50...80)  : .random(in: 24...42),
+                                depth: mega ? .random(in: 90...130) : .random(in: 55...105)))
+                nextCraterX += len + CGFloat.random(in: 1100...1900)
+            }
+        }
+        // Land levels: every so often, a MUCH bigger jump — a long smooth
+        // kicker that rewards a full-speed run-up with serious air
+        if level == .mountain || level == .desert || level == .jungle {
+            while nextMegaX < maxX + 900 {
+                megaJumps.append((x0: nextMegaX,
+                                  len: .random(in: 650...1000),
+                                  h: .random(in: 100...170)))
+                nextMegaX += CGFloat.random(in: 2400...4800)
             }
         }
 
@@ -935,38 +1078,44 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             let ramp = ((generatedUpTo - runwayEnd) / 1500).clamped(to: 0...1)
             var ny = last.y
             switch level {
-            case .mountain:                       // rolling hills, gentler chop
+            case .mountain:                       // long rollers, gentle chop
+                ny += CGFloat.random(in: -3...3) * ramp
+                ny += sin(generatedUpTo / 580) * 36 * ramp
+                ny += sin(generatedUpTo / 230) * 6 * ramp
+                ny += (megaBumpHeight(at: gx) - megaBumpHeight(at: gx - segLen)) * ramp
+                ny = ny.clamped(to: size.height * 0.10 ... size.height * 0.80)
+            case .desert:                         // huge sweeping dunes = big air
                 ny += CGFloat.random(in: -4...4) * ramp
-                ny += sin(generatedUpTo / 430) * 24 * ramp
-                ny += sin(generatedUpTo / 170) * 8 * ramp
-                ny = ny.clamped(to: size.height * 0.12 ... size.height * 0.50)
-            case .desert:                         // long sweeping dunes = big jumps
-                ny += CGFloat.random(in: -5...5) * ramp
-                ny += sin(generatedUpTo / 540) * 30 * ramp
-                ny += sin(generatedUpTo / 200) * 9 * ramp
-                ny = ny.clamped(to: size.height * 0.12 ... size.height * 0.50)
-            case .jungle:                         // choppy root-tangled floor
-                ny += CGFloat.random(in: -6...6) * ramp
-                ny += sin(generatedUpTo / 380) * 22 * ramp
-                ny += sin(generatedUpTo / 140) * 10 * ramp
-                ny = ny.clamped(to: size.height * 0.12 ... size.height * 0.50)
+                ny += sin(generatedUpTo / 720) * 44 * ramp
+                ny += sin(generatedUpTo / 270) * 7 * ramp
+                ny += (megaBumpHeight(at: gx) - megaBumpHeight(at: gx - segLen)) * ramp
+                ny = ny.clamped(to: size.height * 0.10 ... size.height * 0.80)
+            case .jungle:                         // rolling floor, light root chop
+                ny += CGFloat.random(in: -4...4) * ramp
+                ny += sin(generatedUpTo / 520) * 32 * ramp
+                ny += sin(generatedUpTo / 190) * 7 * ramp
+                ny += (megaBumpHeight(at: gx) - megaBumpHeight(at: gx - segLen)) * ramp
+                ny = ny.clamped(to: size.height * 0.10 ... size.height * 0.80)
             case .space:
                 // Absolute height: gentle regolith swells + scheduled craters.
                 // Each crater is a bowl between two raised rims — dive in,
                 // launch off the far rim, hang forever in the low gravity.
+                // Everything is wide and low-slope so the 35pt sampling stays
+                // smooth: broad rims, and a bowl that enters/exits flat.
                 var y = size.height * 0.28
-                y += (sin(gx / 520) * 22 + sin(gx / 190) * 7) * ramp
+                y += (sin(gx / 620) * 18 + sin(gx / 260) * 5) * ramp
                 for c in craters where gx >= c.x0 && gx <= c.x0 + c.len {
                     let t = (gx - c.x0) / c.len
-                    let rims = exp(-pow((t - 0.10) / 0.07, 2))
-                             + exp(-pow((t - 0.90) / 0.07, 2))
+                    let rims = exp(-pow((t - 0.14) / 0.11, 2))
+                             + exp(-pow((t - 0.86) / 0.11, 2))
                     y += c.rimH * rims * ramp
-                    if t > 0.16 && t < 0.84 {
-                        let u = (t - 0.16) / 0.68
-                        y -= c.depth * sin(u * .pi) * ramp
+                    if t > 0.20 && t < 0.80 {
+                        let u = (t - 0.20) / 0.60
+                        // Cosine bowl: zero slope at both edges, no kinks
+                        y -= c.depth * 0.5 * (1 - cos(u * 2 * .pi)) * ramp
                     }
                 }
-                ny = y.clamped(to: size.height * 0.08 ... size.height * 0.60)
+                ny = y.clamped(to: size.height * 0.02 ... size.height * 0.70)
             case .water:
                 // Absolute height: smooth swell humps + scheduled wave jumps.
                 // (No clamp-flattening — crests stay rounded.)
@@ -996,8 +1145,28 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             terrainPoints = Array(terrainPoints.drop { $0.x < keepFrom })
             waterWaves.removeAll { $0.x0 + $0.len < keepFrom }
             craters.removeAll { $0.x0 + $0.len < keepFrom }
+            megaJumps.removeAll { $0.x0 + $0.len < keepFrom }
         }
         rebuildTerrainMesh()
+    }
+
+    /// Summed height of scheduled mega jumps at x: smooth-stepped quick rise
+    /// to the crest, then a longer smooth descent for the landing.
+    private func megaBumpHeight(at x: CGFloat) -> CGFloat {
+        var y: CGFloat = 0
+        for m in megaJumps where x >= m.x0 && x <= m.x0 + m.len {
+            let t = (x - m.x0) / m.len
+            let s: CGFloat
+            if t < 0.45 {
+                let u = t / 0.45
+                s = 3 * u * u - 2 * u * u * u
+            } else {
+                let u = (t - 0.45) / 0.55
+                s = 1 - (3 * u * u - 2 * u * u * u)
+            }
+            y += m.h * s
+        }
+        return y
     }
 
     // MARK: Terrain textures
@@ -1336,8 +1505,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             rearWheelVis  = makeWheelVisual(radius: rearR)
             frontWheelVis = makeWheelVisual(radius: frontR)
         case .buggy:
-            rearWheelVis  = makeWheelVisual(radius: rearR)
-            frontWheelVis = makeWheelVisual(radius: frontR)
+            // Beach-kart stance: oversized knobby rear, smaller front
+            rearWheelVis  = makeBuggyWheel(radius: rearR + 4)
+            frontWheelVis = makeBuggyWheel(radius: frontR + 2)
         case .hover:
             rearWheelVis  = makeHoverPad(radius: rearR)
             frontWheelVis = makeHoverPad(radius: frontR)
@@ -1469,77 +1639,235 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     }
 
     /// Hover pad: no wheel — a dark skid with a pulsing thruster glow beneath.
-    /// Dune buggy: open tube-frame roll cage over a bright tub, engine out back.
+    /// Beach-kart dune buggy: swooping purple body with a long low nose,
+    /// chrome tube frame, black bucket seat, roof light bar, and a rear wing.
     private func buildBuggyVisual() {
-        let body      = SKColor(red: 0.95, green: 0.45, blue: 0.10, alpha: 1)
-        let bodyDark  = SKColor(red: 0.62, green: 0.26, blue: 0.04, alpha: 1)
-        let steel     = SKColor(red: 0.45, green: 0.47, blue: 0.52, alpha: 1)
-        let steelDark = SKColor(red: 0.25, green: 0.26, blue: 0.30, alpha: 1)
+        let purple     = SKColor(red: 0.55, green: 0.28, blue: 0.82, alpha: 1)
+        let purpleDark = SKColor(red: 0.33, green: 0.14, blue: 0.52, alpha: 1)
+        let swoosh     = SKColor(red: 0.80, green: 0.60, blue: 0.95, alpha: 1)
+        let chrome     = SKColor(red: 0.80, green: 0.82, blue: 0.86, alpha: 1)
+        let chromeDark = SKColor(red: 0.48, green: 0.50, blue: 0.56, alpha: 1)
+        let black      = SKColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 1)
 
-        // Low-slung tub between the wheels
-        let tub = CGMutablePath()
-        tub.move(to: CGPoint(x: -44, y: 4))
-        tub.addLine(to: CGPoint(x: 44, y: 4))
-        tub.addLine(to: CGPoint(x: 38, y: 26))
-        tub.addLine(to: CGPoint(x: -36, y: 24))
-        tub.closeSubpath()
-        let tubNode = SKShapeNode(path: tub)
-        tubNode.fillColor = body; tubNode.strokeColor = bodyDark; tubNode.lineWidth = 2.5
-        chassisVis.addChild(tubNode)
+        // All kart bodywork lives in a scaled container so the vehicle reads
+        // big enough for the rider (who stays 1x and is added separately).
+        let kart = SKNode()
+        kart.setScale(1.22)
+        kart.position = CGPoint(x: 2, y: 0)
+        chassisVis.addChild(kart)
 
-        // Roll cage: pillars, top bar, rear brace
-        let cage = CGMutablePath()
-        cage.move(to: CGPoint(x: 18, y: 24));  cage.addLine(to: CGPoint(x: 8, y: 58))
-        cage.addLine(to: CGPoint(x: -20, y: 58)); cage.addLine(to: CGPoint(x: -26, y: 22))
-        cage.move(to: CGPoint(x: -20, y: 58)); cage.addLine(to: CGPoint(x: -38, y: 20))
-        let cageNode = SKShapeNode(path: cage)
-        cageNode.strokeColor = steel; cageNode.lineWidth = 5
-        cageNode.lineCap = .round; cageNode.lineJoin = .round
-        cageNode.fillColor = .clear
-        cageNode.zPosition = 0.7                  // in front of the rider
-        chassisVis.addChild(cageNode)
-
-        // Bucket seat + rear engine block with upswept exhaust
-        let seat = SKShapeNode(rect: CGRect(x: -28, y: 14, width: 16, height: 22),
-                               cornerRadius: 5)
-        seat.fillColor = SKColor(red: 0.16, green: 0.17, blue: 0.22, alpha: 1)
-        seat.strokeColor = .clear
-        chassisVis.addChild(seat)
-        let engine = SKShapeNode(rect: CGRect(x: -46, y: 8, width: 16, height: 18),
-                                 cornerRadius: 3)
-        engine.fillColor = steel; engine.strokeColor = steelDark; engine.lineWidth = 2
-        chassisVis.addChild(engine)
-        let pipe = SKShapeNode(rect: CGRect(x: -52, y: 22, width: 6, height: 16),
-                               cornerRadius: 3)
-        pipe.fillColor = steelDark; pipe.strokeColor = .clear
-        pipe.zRotation = 0.35
-        chassisVis.addChild(pipe)
-
-        // Fender arcs over both wheels
-        for (wx, wr) in [(-wheelbase / 2, rearR), (wheelbase / 2, frontR)] {
-            let fender = SKShapeNode(path: {
+        // Suspension arms down to the wheel hubs (drawn first, under the body)
+        for wx in [-wheelbase / 2, wheelbase / 2] {
+            let arm = SKShapeNode(path: {
                 let p = CGMutablePath()
-                p.addArc(center: CGPoint(x: wx, y: 0), radius: wr + 6,
-                         startAngle: 0.4, endAngle: .pi - 0.4, clockwise: false)
+                p.move(to: CGPoint(x: wx * 0.6, y: 8))
+                p.addLine(to: CGPoint(x: wx / 1.22, y: 0))
                 return p
             }())
-            fender.strokeColor = bodyDark; fender.lineWidth = 5
-            fender.lineCap = .round; fender.fillColor = .clear
-            chassisVis.addChild(fender)
+            arm.strokeColor = chromeDark; arm.lineWidth = 4
+            arm.lineCap = .round; arm.fillColor = .clear
+            kart.addChild(arm)
         }
 
-        // Front bumper bar + headlight
-        let bumper = SKShapeNode(rect: CGRect(x: 44, y: 6, width: 7, height: 16),
-                                 cornerRadius: 3.5)
-        bumper.fillColor = steel; bumper.strokeColor = steelDark; bumper.lineWidth = 2
-        chassisVis.addChild(bumper)
-        let light = SKShapeNode(circleOfRadius: 5)
-        light.fillColor = SKColor(red: 1, green: 0.93, blue: 0.55, alpha: 1)
-        light.strokeColor = steelDark; light.lineWidth = 2
-        light.position = CGPoint(x: 40, y: 30)
-        chassisVis.addChild(light)
+        // Body: tall at the cockpit, one long swooping nose down to the bumper
+        let bodyPath = CGMutablePath()
+        bodyPath.move(to: CGPoint(x: -44, y: 22))              // rear deck top
+        bodyPath.addQuadCurve(to: CGPoint(x: -18, y: 30),
+                              control: CGPoint(x: -34, y: 30))
+        bodyPath.addLine(to: CGPoint(x: 8, y: 30))             // cockpit lip
+        bodyPath.addQuadCurve(to: CGPoint(x: 48, y: 12),       // the long nose
+                              control: CGPoint(x: 32, y: 26))
+        bodyPath.addQuadCurve(to: CGPoint(x: 46, y: 4),        // nose front
+                              control: CGPoint(x: 51, y: 7))
+        bodyPath.addLine(to: CGPoint(x: -38, y: 3))            // underside
+        bodyPath.addQuadCurve(to: CGPoint(x: -44, y: 22),
+                              control: CGPoint(x: -45, y: 10))
+        bodyPath.closeSubpath()
+        let bodyNode = SKShapeNode(path: bodyPath)
+        bodyNode.fillColor = purple; bodyNode.strokeColor = purpleDark
+        bodyNode.lineWidth = 2.5
+        kart.addChild(bodyNode)
+
+        // Lighter swoosh graphic sweeping down the nose
+        let swooshPath = CGMutablePath()
+        swooshPath.move(to: CGPoint(x: 2, y: 26))
+        swooshPath.addQuadCurve(to: CGPoint(x: 44, y: 9),
+                                control: CGPoint(x: 28, y: 22))
+        swooshPath.addQuadCurve(to: CGPoint(x: 6, y: 18),
+                                control: CGPoint(x: 26, y: 12))
+        swooshPath.closeSubpath()
+        let swooshNode = SKShapeNode(path: swooshPath)
+        swooshNode.fillColor = swoosh; swooshNode.strokeColor = .clear
+        swooshNode.alpha = 0.85
+        kart.addChild(swooshNode)
+
+        // Black bucket seat with headrest, behind the rider
+        let seatNode = SKNode()
+        seatNode.zPosition = 0.4
+        let seatBack = SKShapeNode(rect: CGRect(x: -28, y: 12, width: 11, height: 36),
+                                   cornerRadius: 5)
+        seatBack.fillColor = black; seatBack.strokeColor = chromeDark; seatBack.lineWidth = 1.5
+        seatBack.zRotation = -0.12
+        seatNode.addChild(seatBack)
+        let headrest = SKShapeNode(rect: CGRect(x: -25, y: 47, width: 13, height: 9),
+                                   cornerRadius: 4)
+        headrest.fillColor = black; headrest.strokeColor = chromeDark; headrest.lineWidth = 1.5
+        seatNode.addChild(headrest)
+        kart.addChild(seatNode)
+
+        // Chrome side rail along the sill
+        let rail = SKShapeNode(rect: CGRect(x: -30, y: 0, width: 58, height: 5),
+                               cornerRadius: 2.5)
+        rail.fillColor = chrome; rail.strokeColor = chromeDark; rail.lineWidth = 1.5
+        rail.zPosition = 0.6
+        kart.addChild(rail)
+
+        // Steering wheel on a raked column (the rider's hand lands on it)
+        let column = SKShapeNode(path: {
+            let p = CGMutablePath()
+            p.move(to: CGPoint(x: 10, y: 28))
+            p.addLine(to: CGPoint(x: 17, y: 40))
+            return p
+        }())
+        column.strokeColor = chromeDark; column.lineWidth = 3.5
+        column.lineCap = .round; column.fillColor = .clear
+        column.zPosition = 0.42
+        kart.addChild(column)
+        let wheel = SKShapeNode(circleOfRadius: 7)
+        wheel.strokeColor = black; wheel.lineWidth = 3.5
+        wheel.fillColor = .clear
+        wheel.position = CGPoint(x: 18, y: 42)
+        wheel.zPosition = 0.42
+        kart.addChild(wheel)
+
+        // Chrome roll cage in front of the rider — tall enough to clear the helmet
+        let cage = CGMutablePath()
+        cage.move(to: CGPoint(x: 12, y: 28));    cage.addLine(to: CGPoint(x: 8, y: 76))
+        cage.addLine(to: CGPoint(x: -20, y: 76)); cage.addLine(to: CGPoint(x: -32, y: 22))
+        cage.move(to: CGPoint(x: -20, y: 76));   cage.addLine(to: CGPoint(x: -42, y: 20))
+        let cageNode = SKShapeNode(path: cage)
+        cageNode.strokeColor = chrome; cageNode.lineWidth = 5.5
+        cageNode.lineCap = .round; cageNode.lineJoin = .round
+        cageNode.fillColor = .clear
+        cageNode.zPosition = 0.7
+        kart.addChild(cageNode)
+
+        // Roof light bar: four round lamps in dark housings
+        for k in 0..<4 {
+            let x = -14 + CGFloat(k) * 7
+            let housing = SKShapeNode(circleOfRadius: 4.2)
+            housing.fillColor = chromeDark; housing.strokeColor = .clear
+            housing.position = CGPoint(x: x, y: 80)
+            housing.zPosition = 0.75
+            kart.addChild(housing)
+            let lens = SKShapeNode(circleOfRadius: 2.6)
+            lens.fillColor = SKColor(red: 1, green: 0.95, blue: 0.75, alpha: 1)
+            lens.strokeColor = .clear
+            lens.position = housing.position
+            lens.zPosition = 0.76
+            kart.addChild(lens)
+        }
+
+        // Rear wing on angled struts
+        let strut = SKShapeNode(path: {
+            let p = CGMutablePath()
+            p.move(to: CGPoint(x: -38, y: 26))
+            p.addLine(to: CGPoint(x: -48, y: 44))
+            p.move(to: CGPoint(x: -32, y: 26))
+            p.addLine(to: CGPoint(x: -42, y: 44))
+            return p
+        }())
+        strut.strokeColor = chromeDark; strut.lineWidth = 3
+        strut.lineCap = .round; strut.fillColor = .clear
+        strut.zPosition = 0.3
+        kart.addChild(strut)
+        let wing = SKShapeNode(rect: CGRect(x: -12, y: -2.5, width: 26, height: 5),
+                               cornerRadius: 2.5)
+        wing.fillColor = purple; wing.strokeColor = purpleDark; wing.lineWidth = 2
+        wing.position = CGPoint(x: -46, y: 46)
+        wing.zRotation = 0.22
+        wing.zPosition = 0.3
+        kart.addChild(wing)
+
+        // Chrome front bumper loop + tow hook
+        let bumper = SKShapeNode(rect: CGRect(x: 46, y: 3, width: 6, height: 17),
+                                 cornerRadius: 3)
+        bumper.fillColor = chrome; bumper.strokeColor = chromeDark; bumper.lineWidth = 1.5
+        kart.addChild(bumper)
+        let hook = SKShapeNode(circleOfRadius: 2.5)
+        hook.strokeColor = chromeDark; hook.lineWidth = 2; hook.fillColor = .clear
+        hook.position = CGPoint(x: 53, y: 8)
+        kart.addChild(hook)
+
+        // Side exhaust exiting low at the rear
+        let pipe = SKShapeNode(rect: CGRect(x: -50, y: 5, width: 14, height: 5),
+                               cornerRadius: 2.5)
+        pipe.fillColor = chromeDark; pipe.strokeColor = .clear
+        pipe.zRotation = 0.12
+        kart.addChild(pipe)
 
         buildRider()
+        // Seat the rider IN the kart: lifted onto the bench, and a bodywork
+        // side panel over the footwell so the legs read as inside the tub
+        riderNode.position = CGPoint(x: 0, y: 12)
+        let panel = CGMutablePath()
+        panel.move(to: CGPoint(x: -20, y: 2))
+        panel.addLine(to: CGPoint(x: 16, y: 2))
+        panel.addLine(to: CGPoint(x: 13, y: 28))
+        panel.addQuadCurve(to: CGPoint(x: -18, y: 26),
+                           control: CGPoint(x: -2, y: 32))
+        panel.closeSubpath()
+        let panelNode = SKShapeNode(path: panel)
+        panelNode.fillColor = purple
+        panelNode.strokeColor = purpleDark; panelNode.lineWidth = 2.5
+        panelNode.zPosition = 0.55                // over the legs, under the cage
+        chassisVis.addChild(panelNode)
+    }
+
+    /// Fat knobby off-road tire with a chrome five-spoke rim.
+    private func makeBuggyWheel(radius: CGFloat) -> SKNode {
+        let wheelNode = SKNode()
+        wheelNode.zPosition = Z.bike      // without this the tires hide behind the bg
+        let tireColor = SKColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1)
+        let chrome    = SKColor(red: 0.80, green: 0.82, blue: 0.86, alpha: 1)
+        let chromeDark = SKColor(red: 0.48, green: 0.50, blue: 0.56, alpha: 1)
+
+        let tire = SKShapeNode(circleOfRadius: radius)
+        tire.fillColor = tireColor
+        tire.strokeColor = SKColor(white: 0.05, alpha: 1); tire.lineWidth = 2
+        wheelNode.addChild(tire)
+        // Knob lugs around the tread
+        for i in 0..<9 {
+            let a = CGFloat(i) / 9 * 2 * .pi
+            let lug = SKShapeNode(rect: CGRect(x: -2.4, y: -1.8, width: 4.8, height: 3.6),
+                                  cornerRadius: 1.2)
+            lug.fillColor = tireColor
+            lug.strokeColor = SKColor(white: 0.05, alpha: 1); lug.lineWidth = 1
+            lug.position = CGPoint(x: cos(a) * radius, y: sin(a) * radius)
+            lug.zRotation = a
+            wheelNode.addChild(lug)
+        }
+        // Chrome rim with five spokes
+        let rim = SKShapeNode(circleOfRadius: radius * 0.52)
+        rim.fillColor = chrome; rim.strokeColor = chromeDark; rim.lineWidth = 2
+        wheelNode.addChild(rim)
+        for i in 0..<5 {
+            let a = CGFloat(i) / 5 * 2 * .pi
+            let spoke = SKShapeNode(path: {
+                let p = CGMutablePath()
+                p.move(to: .zero)
+                p.addLine(to: CGPoint(x: cos(a) * radius * 0.46,
+                                      y: sin(a) * radius * 0.46))
+                return p
+            }())
+            spoke.strokeColor = chromeDark; spoke.lineWidth = 2.5
+            spoke.lineCap = .round
+            wheelNode.addChild(spoke)
+        }
+        let hub = SKShapeNode(circleOfRadius: radius * 0.14)
+        hub.fillColor = chromeDark; hub.strokeColor = .clear
+        wheelNode.addChild(hub)
+        return wheelNode
     }
 
     /// Fan boat: flat aluminum hull, raised bench, big caged fan at the stern.
@@ -1983,7 +2311,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         case .mountain: m = GraveMaw(screenHeight: size.height, startX: 180 - 260)
         case .water:    m = Kraken(screenHeight: size.height, startX: 180 - 260)
         case .space:    m = VoidSpecter(screenHeight: size.height, startX: 180 - 260)
-        case .jungle:   return   // its horror hasn't been dreamed up yet
+        case .jungle:   m = Anaconda(screenHeight: size.height, startX: 180 - 260)
         }
         m.zPosition = Z.terrain + 0.5     // in front of the ground, behind the bike
         addChild(m)
@@ -2093,7 +2421,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         // satisfying launch, so we amplify the physics at the transition.
         if wasGrounded && !grounded && gasActive
             && pb.velocity.dx > 250 && pb.velocity.dy > -50 {
-            pb.velocity.dy += pb.velocity.dx * 0.42   // launch strength (tunable)
+            pb.velocity.dy += pb.velocity.dx * 0.30   // launch strength (tunable)
         }
 
         // --- Landing absorb: soak up vertical speed on touchdown (suspension) ---

@@ -17,6 +17,7 @@ final class Kraken: ChaseMonster {
 
     // MARK: Parts
     private let H: CGFloat              // screen height, the scale unit
+    private let mantleScale: CGFloat = 1.6   // mantle art is built at 1x, then scaled up
     private var mantleNode: SKNode!
     private var eyePupil: SKShapeNode!
     /// One continuous tapered ribbon per tentacle; its path is rebuilt every
@@ -60,16 +61,16 @@ final class Kraken: ChaseMonster {
 
     // MARK: - Animation
     override func onDevour() {
-        mantleNode.run(.sequence([.scale(to: 1.12, duration: 0.10),
-                                  .scale(to: 1.00, duration: 0.30)]))
+        mantleNode.run(.sequence([.scale(to: mantleScale * 1.12, duration: 0.10),
+                                  .scale(to: mantleScale, duration: 0.30)]))
     }
 
     override func layout(groundY: (CGFloat) -> CGFloat) {
         // Mantle rides the swell behind the reaching tentacles
-        let mx = catchX - H * 0.60
+        let mx = catchX - H * 0.75
         let surf = groundY(mx)
-        let bob = sin(phase * 1.1) * H * 0.03
-        mantleNode.position = CGPoint(x: mx, y: surf + H * 0.16 + bob)
+        let bob = sin(phase * 1.1) * H * 0.04
+        mantleNode.position = CGPoint(x: mx, y: surf + H * 0.26 + bob)
         mantleNode.zRotation = 0.06 * sin(phase * 0.8)
 
         // Slit pupil narrows and widens like it's sizing you up
@@ -107,7 +108,7 @@ final class Kraken: ChaseMonster {
         }
 
         // Dragged under: down to the beak, just beneath the surface
-        mouthCenter = CGPoint(x: mx + H * 0.30, y: surf - H * 0.05)
+        mouthCenter = CGPoint(x: mx + H * 0.45, y: surf - H * 0.08)
 
         // Spray where the lead tentacle rips through the surface
         spray.position = CGPoint(x: catchX - H * 0.05, y: surf + 6)
@@ -119,15 +120,15 @@ final class Kraken: ChaseMonster {
     private func buildTentacles() {
         // (dx, reach, arc, phase offset, z, front-side?)
         let params: [(CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, Bool)] = [
-            ( H * 0.15,  H * 0.50, H * 0.34, 0.0, 0.95, true),   // the lead — its tip is the catch line
-            ( H * 0.05,  H * 0.32, H * 0.46, 1.3, 0.90, true),
-            ( 0,         H * 0.16, H * 0.55, 2.2, 0.35, false),
-            (-H * 0.10, -H * 0.24, H * 0.46, 3.1, 0.90, true),
-            (-H * 0.18, -H * 0.50, H * 0.34, 4.0, 0.35, false),
-            (-H * 0.05,  H * 0.05, H * 0.60, 5.0, 0.30, false),
+            ( H * 0.20,  H * 0.55, H * 0.52, 0.0, 0.95, true),   // the lead — its tip is the catch line
+            ( H * 0.07,  H * 0.42, H * 0.68, 1.3, 0.90, true),
+            ( 0,         H * 0.20, H * 0.82, 2.2, 0.35, false),
+            (-H * 0.13, -H * 0.32, H * 0.68, 3.1, 0.90, true),
+            (-H * 0.24, -H * 0.65, H * 0.50, 4.0, 0.35, false),
+            (-H * 0.07,  H * 0.06, H * 0.90, 5.0, 0.30, false),
         ]
         for (dx, reach, arc, po, z, front) in params {
-            let baseR = H * 0.055
+            let baseR = H * 0.085
             let shape = SKShapeNode()
             shape.fillColor = front ? hide : hideDark
             shape.strokeColor = hideDark
@@ -154,36 +155,16 @@ final class Kraken: ChaseMonster {
 
     /// Half-thickness of a tentacle at parameter u (0 root → 1 tip).
     private func tentacleR(u: CGFloat, baseR: CGFloat) -> CGFloat {
-        baseR * (1 - 0.88 * u) + H * 0.004
+        baseR * (1 - 0.88 * u) + H * 0.006
     }
 
-    /// Filled outline around a spine polyline: offset each spine point along
-    /// its normal by the local radius, out one side and back the other.
-    private static func ribbonPath(spine: [CGPoint],
-                                   radius: (CGFloat) -> CGFloat) -> CGPath {
-        let n = spine.count
-        var left: [CGPoint] = [], right: [CGPoint] = []
-        for i in 0..<n {
-            let u = CGFloat(i) / CGFloat(n - 1)
-            let prev = spine[max(0, i - 1)], next = spine[min(n - 1, i + 1)]
-            var dx = next.x - prev.x, dy = next.y - prev.y
-            let len = max(0.001, hypot(dx, dy)); dx /= len; dy /= len
-            let r = radius(u)
-            left.append(CGPoint(x: spine[i].x - dy * r, y: spine[i].y + dx * r))
-            right.append(CGPoint(x: spine[i].x + dy * r, y: spine[i].y - dx * r))
-        }
-        let p = CGMutablePath()
-        p.move(to: left[0])
-        for pt in left.dropFirst() { p.addLine(to: pt) }
-        for pt in right.reversed() { p.addLine(to: pt) }
-        p.closeSubpath()
-        return p
-    }
+    // (ribbonPath lives in ChaseMonster — shared with the other serpents)
 
     // MARK: - Mantle
     private func buildMantle() {
         mantleNode = SKNode()
         mantleNode.zPosition = 0.6
+        mantleNode.setScale(mantleScale)   // geometry below is 1x; scale does the rest
         addChild(mantleNode)
 
         // Swept crown trailing behind the dome

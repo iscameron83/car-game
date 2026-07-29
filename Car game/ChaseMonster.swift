@@ -113,6 +113,30 @@ class ChaseMonster: SKNode {
         return dust
     }
 
+    /// Filled outline around a spine polyline: offset each spine point along
+    /// its normal by the local radius, out one side and back the other.
+    /// The workhorse behind tentacles and serpent bodies.
+    static func ribbonPath(spine: [CGPoint],
+                           radius: (CGFloat) -> CGFloat) -> CGPath {
+        let n = spine.count
+        var left: [CGPoint] = [], right: [CGPoint] = []
+        for i in 0..<n {
+            let u = CGFloat(i) / CGFloat(n - 1)
+            let prev = spine[max(0, i - 1)], next = spine[min(n - 1, i + 1)]
+            var dx = next.x - prev.x, dy = next.y - prev.y
+            let len = max(0.001, hypot(dx, dy)); dx /= len; dy /= len
+            let r = radius(u)
+            left.append(CGPoint(x: spine[i].x - dy * r, y: spine[i].y + dx * r))
+            right.append(CGPoint(x: spine[i].x + dy * r, y: spine[i].y - dx * r))
+        }
+        let p = CGMutablePath()
+        p.move(to: left[0])
+        for pt in left.dropFirst() { p.addLine(to: pt) }
+        for pt in right.reversed() { p.addLine(to: pt) }
+        p.closeSubpath()
+        return p
+    }
+
     /// Soft radial dot for particles.
     static func softDotTexture() -> SKTexture {
         let S: CGFloat = 32
